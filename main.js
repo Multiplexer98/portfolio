@@ -81,6 +81,7 @@ function setLang(lang) {
   document.documentElement.lang = lang;
   textEls.forEach(el => { el.innerHTML = it ? IT[el.dataset.i18n] ?? el.dataset.en : el.dataset.en; });
   ariaEls.forEach(el => el.setAttribute('aria-label', it ? IT[el.dataset.i18nAria] ?? el.dataset.enAria : el.dataset.enAria));
+  document.querySelectorAll('a[href^="cv/"]').forEach(a => { a.href = `cv/Nicola-Antonio-Buzzo-CV-${it ? 'IT' : 'EN'}.pdf`; });
   langBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
   try { localStorage.setItem('lang', lang); } catch {}
 }
