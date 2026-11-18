@@ -20,9 +20,13 @@ const boxes = [...document.querySelectorAll('main > section, footer')];
 const onScroll = () => {
   const y = bar.offsetHeight / 2;
   const under = boxes.find(b => { const r = b.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
-  const bg = under ? getComputedStyle(under).backgroundColor : 'rgba(0, 0, 0, 0)';
-  bar.style.backgroundColor = bg;
-  bar.classList.toggle('solid', bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent');
+  const own = under ? getComputedStyle(under).backgroundColor : 'rgba(0, 0, 0, 0)';
+  const clear = own === 'rgba(0, 0, 0, 0)' || own === 'transparent';
+  // over the blob field: transparent at the very top, frosted slate once scrolling starts
+  const glass = clear && scrollY > 8;
+  bar.style.backgroundColor = glass ? 'rgba(47, 68, 84, 0.72)' : own;
+  bar.classList.toggle('glass', glass);
+  bar.classList.toggle('solid', !clear || glass);
 };
 addEventListener('scroll', onScroll, { passive: true });
 addEventListener('resize', onScroll);
@@ -194,10 +198,12 @@ function startField() {
   // ponytail: fixed 0.6 render scale; drop to 0.45 if low-end phones stutter.
   const SCALE = 0.6;
   const resize = () => {
-    canvas.width = Math.round(innerWidth * SCALE);
-    canvas.height = Math.round(innerHeight * SCALE);
+    const w = Math.round(canvas.clientWidth * SCALE), h = Math.round(canvas.clientHeight * SCALE);
+    if (w === canvas.width && h === canvas.height) return false; // URL-bar scroll: nothing to do
+    canvas.width = w; canvas.height = h;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.uniform2f(uRes, canvas.width, canvas.height);
+    return true;
   };
 
   const mouse = { x: 9, y: 9, tx: 9, ty: 9 };
@@ -220,7 +226,7 @@ function startField() {
   const draw = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
   resize();
-  addEventListener('resize', () => { resize(); draw(); });
+  addEventListener('resize', () => { if (resize()) draw(); });
   draw();
 
   // render only while the field is actually showing (hero or contact on screen)
