@@ -178,7 +178,23 @@ void main() {
   vec3 dark = mix(PINE_DEEP, WINE_DEEP, smoothstep(0.35, 0.65, roseW));
   // highlights stay below pure pastel so the ink headline keeps contrast over the spheres
   vec3 col = mix(dark, lit, smoothstep(0.0, 1.0, diff * 0.85 + 0.05)) * 0.84;
-  col += vec3(0.95, 0.85, 0.9) * rim * 0.1;
+
+  // ambient occlusion: darken where the surface is close to another sphere (merged joints, overlaps)
+  float occ = 0.0, sc = 1.0;
+  for (int i = 1; i <= 3; i++) {
+    float h = 0.035 * float(i);
+    occ += (h - map(p + n * h, aspect, tmp)) * sc;
+    sc *= 0.7;
+  }
+  col *= mix(0.72, 1.0, clamp(1.0 - 2.2 * occ, 0.0, 1.0));
+
+  // specular: a broad, low-intensity sheen, not a glossy dot
+  vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+  float spec = pow(max(dot(n, H), 0.0), 8.0) * 0.07;
+
+  // soft rim light on the side away from the key: a pale slate-blue tone, low intensity
+  col += vec3(0.62, 0.76, 0.84) * rim * 0.16;
+  col += vec3(0.95, 0.90, 0.92) * spec;
   gl_FragColor = vec4(mix(SLATE, col, cover), 1.0);
 }`;
 
