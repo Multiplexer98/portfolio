@@ -107,8 +107,15 @@ const vec3 ROSE  = vec3(0.878, 0.478, 0.584);       // #E07A95, lit side
 const vec3 TEAL  = vec3(0.310, 0.702, 0.663);       // #4FB3A9, lit side
 const vec3 WINE_DEEP = vec3(0.290, 0.100, 0.230);   // rose shadow: bordeaux into violet, never black
 const vec3 PINE_DEEP = vec3(0.070, 0.220, 0.270);   // teal shadow: deep blue-green
+const float GRAIN = 0.0;                            // film grain strength; 0 = off (the user chose smooth)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
+// last step for every pixel: optional grain on the native pixel grid, strongest in the midtones; GRAIN = 0 adds nothing
+vec3 finish(vec3 c) {
+  float mid = 1.0 - abs(dot(c, vec3(0.333)) * 2.0 - 1.0);
+  return c + (hash(gl_FragCoord.xy) - 0.5) * GRAIN * mid;
+}
 
 vec4 ball(int i, float aspect) {
   float f = float(i);
@@ -146,6 +153,9 @@ void main() {
   vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
   uv.x *= aspect;
   float pix = 2.0 / uRes.y;                 // one device pixel, in world units
+  // background: a faint lift behind the spheres, so the field has atmosphere without changing the slate
+  vec2 hc = uv - vec2(0.35 * aspect, 0.0);
+  vec3 bg = SLATE + vec3(0.016, 0.024, 0.028) * exp(-1.2 * dot(hc, hc));
   vec3 ro = vec3(uv, 2.0), rd = vec3(0.0, 0.0, -1.0);
   float t = 0.0, w = 0.0, minD = 10.0; bool hit = false;
   for (int s = 0; s < 40; s++) {
@@ -157,7 +167,7 @@ void main() {
   }
   // antialiased silhouette: a one-pixel ramp from the closest approach along the ray
   float cover = hit ? 1.0 : clamp(1.0 - minD / pix, 0.0, 1.0);
-  if (cover <= 0.0) { gl_FragColor = vec4(SLATE, 1.0); return; }
+  if (cover <= 0.0) { gl_FragColor = vec4(finish(bg), 1.0); return; }
 
   vec3 p = ro + rd * t; float tmp;
   vec2 e = vec2(0.003, 0.0);
@@ -195,7 +205,13 @@ void main() {
   // soft rim light on the side away from the key: a pale slate-blue tone, low intensity
   col += vec3(0.62, 0.76, 0.84) * rim * 0.16;
   col += vec3(0.95, 0.90, 0.92) * spec;
-  gl_FragColor = vec4(mix(SLATE, col, cover), 1.0);
+
+  // depth: spheres further from the viewer lose some colour and sink toward the background; near ones stay vivid
+  float far = 1.0 - smoothstep(-0.4, 0.4, p.z);
+  col = mix(col, vec3(dot(col, vec3(0.333))), far * 0.22);
+  col = mix(col, SLATE, far * 0.16);
+
+  gl_FragColor = vec4(finish(mix(bg, col, cover)), 1.0);
 }`;
 
 const VERT = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }';
