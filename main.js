@@ -1,4 +1,4 @@
-// Grainy blob field (WebGL) + section navigation state.
+// Blob field (WebGL, smooth shading) + section navigation state.
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -145,16 +145,19 @@ void main() {
   float aspect = uRes.x / uRes.y;
   vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
   uv.x *= aspect;
+  float pix = 2.0 / uRes.y;                 // one device pixel, in world units
   vec3 ro = vec3(uv, 2.0), rd = vec3(0.0, 0.0, -1.0);
-  float t = 0.0, w = 0.0; bool hit = false;
+  float t = 0.0, w = 0.0, minD = 10.0; bool hit = false;
   for (int s = 0; s < 40; s++) {
     float d = map(ro + rd * t, aspect, w);
+    minD = min(minD, d);
     if (d < 0.002) { hit = true; break; }
     t += d;
     if (t > 4.0) break;
   }
-  float g = hash(gl_FragCoord.xy);
-  if (!hit) { gl_FragColor = vec4(SLATE + (g - 0.5) * 0.025, 1.0); return; }
+  // antialiased silhouette: a one-pixel ramp from the closest approach along the ray
+  float cover = hit ? 1.0 : clamp(1.0 - minD / pix, 0.0, 1.0);
+  if (cover <= 0.0) { gl_FragColor = vec4(SLATE, 1.0); return; }
 
   vec3 p = ro + rd * t; float tmp;
   vec2 e = vec2(0.003, 0.0);
@@ -165,16 +168,16 @@ void main() {
   float roseW;
   map(p, aspect, roseW);
 
+  // smooth continuous shading: key light from upper left, soft pale rim light for volume
   vec3 L = normalize(vec3(-0.6, 0.55, 0.6));
-  float lum = clamp(dot(n, L), 0.0, 1.0);
-  lum = lum * 0.95 + pow(1.0 - n.z, 3.0) * 0.25;   // rim catches light like the sprayed edges
-  vec3 lit = mix(TEAL, ROSE, smoothstep(0.35, 0.65, roseW));
-  vec3 dark = mix(PINE, WINE, smoothstep(0.35, 0.65, roseW)) * 0.55;
-  // stipple: luminance decides the probability a grain is lit
-  float k = smoothstep(0.0, 1.0, lum + (g - 0.5) * 0.7);
-  vec3 col = mix(dark, lit, k);
-  col += step(0.965, g) * lum * 0.18;
-  gl_FragColor = vec4(col, 1.0);
+  float diff = clamp(dot(n, L), 0.0, 1.0);
+  float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.5);
+  vec3 lit  = mix(TEAL, ROSE, smoothstep(0.35, 0.65, roseW));
+  vec3 dark = mix(PINE, WINE, smoothstep(0.35, 0.65, roseW)) * 0.6;
+  // highlights stay below pure pastel so the ink headline keeps contrast over the spheres
+  vec3 col = mix(dark, lit, smoothstep(0.0, 1.0, diff * 0.8 + 0.06)) * 0.8;
+  col += vec3(0.95, 0.85, 0.9) * rim * 0.1;
+  gl_FragColor = vec4(mix(SLATE, col, cover), 1.0);
 }`;
 
 const VERT = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }';
@@ -196,14 +199,15 @@ function startField() {
   const uTime = gl.getUniformLocation(prog, 'uTime');
   const uMouse = gl.getUniformLocation(prog, 'uMouse');
 
-  // ponytail: fixed 0.6 render scale; drop to 0.45 if low-end phones stutter.
-  const SCALE = 0.6;
+  // Render at device pixels (dpr capped at 2). Quality q starts at full and only steps down while frames run slow.
+  let q = 1;
   const resize = () => {
-    const w = Math.round(canvas.clientWidth * SCALE), h = Math.round(canvas.clientHeight * SCALE);
+    const k = Math.min(devicePixelRatio || 1, 2) * q;
+    const w = Math.round(canvas.clientWidth * k), h = Math.round(canvas.clientHeight * k);
     if (w === canvas.width && h === canvas.height) return false; // URL-bar scroll: nothing to do
     canvas.width = w; canvas.height = h;
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.uniform2f(uRes, canvas.width, canvas.height);
+    gl.viewport(0, 0, w, h);
+    gl.uniform2f(uRes, w, h);
     return true;
   };
 
@@ -214,20 +218,33 @@ function startField() {
     mouse.ty = -(e.clientY / innerHeight * 2 - 1);
   }, { passive: true });
 
-  let visible = true, raf = 0;
+  let visible = true, raf = 0, last = 0, sum = 0, frames = 0;
   const t0 = performance.now();
   const frame = now => {
+    // every 30 frames: average slow (>24 ms) steps quality down; comfortably fast (<14 ms) steps it back up
+    if (last) {
+      sum += now - last; frames++;
+      if (frames === 30) {
+        const avg = sum / frames; sum = 0; frames = 0;
+        if (avg > 24 && q > 0.5) { q = Math.max(0.5, q * 0.8); resize(); }
+        else if (avg < 14 && q < 1) { q = Math.min(1, q * 1.15); resize(); }
+      }
+    }
+    last = now;
     mouse.x += (mouse.tx - mouse.x) * 0.05;
     mouse.y += (mouse.ty - mouse.y) * 0.05;
     gl.uniform1f(uTime, (now - t0) / 1000 + 20);
     gl.uniform2f(uMouse, mouse.x, mouse.y);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    raf = visible && !reduceMotion ? requestAnimationFrame(frame) : 0;
+    // pause when the tab is hidden, the field is off screen, or the user prefers reduced motion
+    raf = visible && !reduceMotion && !document.hidden ? requestAnimationFrame(frame) : 0;
+    if (!raf) last = 0;
   };
   const draw = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
   resize();
   addEventListener('resize', () => { if (resize()) draw(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && visible) draw(); });
   draw();
 
   // render only while the field is actually showing (hero or contact on screen)
