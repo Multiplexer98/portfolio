@@ -48,30 +48,12 @@ a { color: inherit; text-underline-offset: .2em; text-decoration-thickness: 1px;
   box-shadow: inset 0 -1px 0 rgba(244, 238, 240, .12);
 }
 
-/* home mark: two grainy spheres, one rose one teal, that merge on hover */
-.mark { position: relative; display: block; width: 44px; height: 44px; border-radius: 50%; }
-.mark::before, .mark::after, .mark span {
-  content: ""; position: absolute; border-radius: 50%;
-  transition: translate .45s var(--ease), scale .45s var(--ease);
-}
-.mark::before {
-  width: 28px; height: 28px; left: 2px; top: 3px;
-  background: radial-gradient(circle at 32% 30%, #F0A3B6, var(--rose) 45%, #6E2F40 100%);
-}
-.mark::after {
-  width: 24px; height: 24px; right: 1px; bottom: 2px;
-  background: radial-gradient(circle at 32% 30%, #7FD0CA, #4E9C9A 45%, var(--pine) 100%);
-}
-.mark span { /* shared grain over both spheres */
-  inset: 0; z-index: 1; mix-blend-mode: overlay; opacity: .55;
-  background:
-    radial-gradient(circle at 20% 30%, #fff 0 .6px, transparent 1px) 0 0 / 3px 3px,
-    radial-gradient(circle at 70% 60%, #000 0 .6px, transparent 1px) 1px 1px / 4px 4px;
-  -webkit-mask: radial-gradient(circle 14px at 16px 17px, #000 98%, transparent), radial-gradient(circle 12px at 31px 30px, #000 98%, transparent);
-          mask: radial-gradient(circle 14px at 16px 17px, #000 98%, transparent), radial-gradient(circle 12px at 31px 30px, #000 98%, transparent);
-}
-.mark:hover::before { translate: 4px 3px; scale: 1.06; }
-.mark:hover::after { translate: -4px -3px; }
+/* home mark: inline SVG, a rose and a teal sphere with coloured shadows and a faint rim; they part on hover */
+.mark { position: relative; display: block; width: 44px; height: 44px; }
+.mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mark .mk-a, .mark .mk-b { transform-box: fill-box; transform-origin: center; transition: transform .45s var(--ease); }
+.mark:hover .mk-a { transform: translate(4px, 3px) scale(1.06); }
+.mark:hover .mk-b { transform: translate(-4px, -3px); }
 
 .top-right { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2.5rem); }
 .lang { display: flex; border: 1.5px solid rgba(244, 238, 240, .6); border-radius: 999px; padding: 2px; }
