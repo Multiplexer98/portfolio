@@ -103,10 +103,10 @@ uniform float uTime;
 uniform vec2 uMouse;
 const int N = 13;
 const vec3 SLATE = vec3(0.184, 0.267, 0.329);
-const vec3 ROSE  = vec3(0.855, 0.482, 0.576);
-const vec3 TEAL  = vec3(0.369, 0.710, 0.690);
-const vec3 WINE  = vec3(0.180, 0.082, 0.106);
-const vec3 PINE  = vec3(0.110, 0.200, 0.204);
+const vec3 ROSE  = vec3(0.878, 0.478, 0.584);       // #E07A95, lit side
+const vec3 TEAL  = vec3(0.310, 0.702, 0.663);       // #4FB3A9, lit side
+const vec3 WINE_DEEP = vec3(0.290, 0.100, 0.230);   // rose shadow: bordeaux into violet, never black
+const vec3 PINE_DEEP = vec3(0.070, 0.220, 0.270);   // teal shadow: deep blue-green
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -168,14 +168,16 @@ void main() {
   float roseW;
   map(p, aspect, roseW);
 
-  // smooth continuous shading: key light from upper left, soft pale rim light for volume
+  // wrapped diffuse: light spills past the terminator, so the falloff is softer
   vec3 L = normalize(vec3(-0.6, 0.55, 0.6));
-  float diff = clamp(dot(n, L), 0.0, 1.0);
+  const float WRAP = 0.35;
+  float diff = clamp((dot(n, L) + WRAP) / (1.0 + WRAP), 0.0, 1.0);
   float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.5);
   vec3 lit  = mix(TEAL, ROSE, smoothstep(0.35, 0.65, roseW));
-  vec3 dark = mix(PINE, WINE, smoothstep(0.35, 0.65, roseW)) * 0.6;
+  // coloured shadow: the shade shifts hue (rose to bordeaux, teal to blue-green) instead of darkening
+  vec3 dark = mix(PINE_DEEP, WINE_DEEP, smoothstep(0.35, 0.65, roseW));
   // highlights stay below pure pastel so the ink headline keeps contrast over the spheres
-  vec3 col = mix(dark, lit, smoothstep(0.0, 1.0, diff * 0.8 + 0.06)) * 0.8;
+  vec3 col = mix(dark, lit, smoothstep(0.0, 1.0, diff * 0.85 + 0.05)) * 0.84;
   col += vec3(0.95, 0.85, 0.9) * rim * 0.1;
   gl_FragColor = vec4(mix(SLATE, col, cover), 1.0);
 }`;
